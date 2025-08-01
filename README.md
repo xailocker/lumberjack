@@ -38,6 +38,7 @@ log.SetOutput(&lumberjack.Logger{
     MaxBackups: 3,
     MaxAge:     28, //days
     Compress:   true, // disabled by default
+    BackupTimeFormatSelf: "20060102150405000", // default 2006-01-02T15-04-05.000
 })
 ```
 
@@ -76,6 +77,11 @@ type Logger struct {
     // using gzip. The default is not to perform compression.
     Compress bool `json:"compress" yaml:"compress"`
     // contains filtered or unexported fields
+
+    // self: 自定义备份名时间格式化
+	// 默认使用 "2006-01-02T15-04-05.000"
+	// 可选："20060102150405000" 等
+	BackupTimeFormatSelf string `json:"backupTimeFormatSelf" yaml:"backupTimeFormatSelf"`
 }
 ```
 Logger is an io.WriteCloser that writes to the specified filename.
