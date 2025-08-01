@@ -107,6 +107,11 @@ type Logger struct {
 	// using gzip. The default is not to perform compression.
 	Compress bool `json:"compress" yaml:"compress"`
 
+	// self: 自定义备份名时间格式化
+	// 默认使用 "2006-01-02T15-04-05.000"
+	// 可选："20060102150405000" 等
+	BackupTimeFormatSelf string `json:"backupTimeFormatSelf" yaml:"backupTimeFormatSelf"`
+
 	size int64
 	file *os.File
 	mu   sync.Mutex
@@ -217,8 +222,16 @@ func (l *Logger) openNew() error {
 	if err == nil {
 		// Copy the mode off the old logfile.
 		mode = info.Mode()
+
+		// self: 自定义备份名时间格式化
+		var newname string
+		if l.BackupTimeFormatSelf != "" {
+			newname = backupNameSelf(name, l.LocalTime, l.BackupTimeFormatSelf)
+		} else {
+			newname = backupName(name, l.LocalTime)
+		}
+		
 		// move the existing file
-		newname := backupName(name, l.LocalTime)
 		if err := os.Rename(name, newname); err != nil {
 			return fmt.Errorf("can't rename log file: %s", err)
 		}
@@ -255,6 +268,21 @@ func backupName(name string, local bool) string {
 	}
 
 	timestamp := t.Format(backupTimeFormat)
+	return filepath.Join(dir, fmt.Sprintf("%s-%s%s", prefix, timestamp, ext))
+}
+
+// backupName 自定义备份名方法
+func backupNameSelf(name string, local bool, backupTimeFormatSelf string) string {
+	dir := filepath.Dir(name)
+	filename := filepath.Base(name)
+	ext := filepath.Ext(filename)
+	prefix := filename[:len(filename)-len(ext)]
+	t := currentTime()
+	if !local {
+		t = t.UTC()
+	}
+
+	timestamp := t.Format(backupTimeFormatSelf)
 	return filepath.Join(dir, fmt.Sprintf("%s-%s%s", prefix, timestamp, ext))
 }
 
@@ -438,7 +466,13 @@ func (l *Logger) timeFromName(filename, prefix, ext string) (time.Time, error) {
 		return time.Time{}, errors.New("mismatched extension")
 	}
 	ts := filename[len(prefix) : len(filename)-len(ext)]
-	return time.Parse(backupTimeFormat, ts)
+	
+	// self: 区分是否自定义时间格式化
+	if l.BackupTimeFormatSelf != "" {
+		return time.Parse(l.BackupTimeFormatSelf, ts)
+	} else {
+		return time.Parse(backupTimeFormat, ts)
+	}
 }
 
 // max returns the maximum size in bytes of log files before rolling.
